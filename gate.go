@@ -94,7 +94,10 @@ func g() {
 	l.Close()
 	//启动gate glider
 	startGateGlider()
-	defer gateGliderCmd.Process.Kill()
+	defer func() {
+		gateGliderCmd.Process.Kill()
+		gateGliderCmd.Wait()
+	}()
 
 	//启动Task Routine
 	go doTask()
@@ -209,27 +212,32 @@ func finalizeCmds() {
 		defer activeXrayCmdsRWLock.RUnlock()
 		for pid := range activeXrayCmds {
 			activeXrayCmds[pid].Process.Kill()
+			activeXrayCmds[pid].Wait()
 		}
 	}()
 	//退出时杀掉 green red glider 和 xray 的cmd
 	defer func() {
 		if greenGliderCmd != nil {
 			greenGliderCmd.Process.Kill()
+			greenGliderCmd.Wait()
 		}
 	}()
 	defer func() {
 		if redGliderCmd != nil {
 			redGliderCmd.Process.Kill()
+			redGliderCmd.Wait()
 		}
 	}()
 	defer func() {
 		if redXrayCmd != nil {
 			redXrayCmd.Process.Kill()
+			redXrayCmd.Wait()
 		}
 	}()
 	defer func() {
 		if greenXrayCmd != nil {
 			greenXrayCmd.Process.Kill()
+			greenXrayCmd.Wait()
 		}
 	}()
 }
@@ -301,6 +309,7 @@ func onProxyCfgsReady() {
 		if !ok {
 			fmt.Printf("killing proxy xray process with cfg: ./chatgpt/%d_%d.json\n", pid, allProxies[pid].Port)
 			activeXrayCmds[pid].Process.Kill()
+			activeXrayCmds[pid].Wait()
 			delete(activeXrayCmds, pid)
 		}
 	}
@@ -318,8 +327,9 @@ func startRedGreenGliderNXrays(selectedProxies []ProxyNode) {
 
 	if redGliderCmd != nil {
 		redGliderCmd.Process.Kill()
+		redGliderCmd.Wait()
 		redXrayCmd.Process.Kill()
-		fmt.Println("red glider & xray process killed.")
+		redXrayCmd.Wait()
 	}
 	redGliderCmd = exec.Command("glider", rArgs...)
 	redXrayCmd = exec.Command("xray", "-c", "red.json")
@@ -328,7 +338,9 @@ func startRedGreenGliderNXrays(selectedProxies []ProxyNode) {
 	if gerr != nil || xerr != nil {
 		fmt.Println("Error starting red glider and xray:", gerr, xerr)
 		redGliderCmd.Process.Kill()
+		redGliderCmd.Wait()
 		redXrayCmd.Process.Kill()
+		redXrayCmd.Wait()
 		redGliderCmd = nil
 		redXrayCmd = nil
 	} else {
@@ -337,8 +349,9 @@ func startRedGreenGliderNXrays(selectedProxies []ProxyNode) {
 	if greenGliderCmd != nil {
 		time.Sleep(4 * time.Second)
 		greenGliderCmd.Process.Kill()
+		greenGliderCmd.Wait()
 		greenXrayCmd.Process.Kill()
-		fmt.Println("green glider & xray process killed.")
+		greenXrayCmd.Wait()
 	}
 	greenGliderCmd = exec.Command("glider", gArgs...)
 	greenXrayCmd = exec.Command("xray", "-c", "green.json")
@@ -347,7 +360,9 @@ func startRedGreenGliderNXrays(selectedProxies []ProxyNode) {
 	if gerr != nil || xerr != nil {
 		fmt.Println("Error starting green glider and xray:", gerr, xerr)
 		greenGliderCmd.Process.Kill()
+		greenGliderCmd.Wait()
 		greenXrayCmd.Process.Kill()
+		greenXrayCmd.Wait()
 		redGliderCmd = nil
 		redXrayCmd = nil
 	} else {
@@ -611,6 +626,7 @@ func doTask10s() {
 				fmt.Println("Proxy ", p, " failed.")
 				activeXrayCmdsRWLock.Lock()
 				activeXrayCmds[p.Id].Process.Kill()
+				activeXrayCmds[p.Id].Wait()
 				delete(activeXrayCmds, p.Id)
 				activeXrayCmdsRWLock.Unlock()
 			} else {
@@ -642,6 +658,7 @@ func doTask10m() {
 				fmt.Println("Proxy ", p, " failed.")
 				activeXrayCmdsRWLock.Lock()
 				activeXrayCmds[p.Id].Process.Kill()
+				activeXrayCmds[p.Id].Wait()
 				delete(activeXrayCmds, p.Id)
 				activeXrayCmdsRWLock.Unlock()
 			} else {

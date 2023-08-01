@@ -393,7 +393,7 @@ func testChatGptConnect(cfg string, serverId uint32, port int, testPort int, sho
 	cmd := exec.Command("xray", "-c", testCfgFileName)
 	defer func() {
 		cmd.Process.Kill()
-		fmt.Println("xray process killed for port = ", port)
+		cmd.Wait()
 	}()
 
 	stdoutPipe, err := cmd.StdoutPipe()
@@ -407,7 +407,6 @@ func testChatGptConnect(cfg string, serverId uint32, port int, testPort int, sho
 		fmt.Println("Error starting xray:", err)
 		return -1
 	}
-	fmt.Println("xray process started for port = ", port)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
