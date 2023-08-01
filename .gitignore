@@ -1,5 +1,9 @@
-cfgs/
-chatgpt/
+# 忽略./cfgs文件夹中的所有文件
+cfgs/*
+# 不忽略./cfgs文件夹本身
+!cfgs/
+chatgpt/*
+!chatgpt/
 tmp/
 pfreedom.exe
 pfreedom
