@@ -1,0 +1,66 @@
+{
+	"_comment": {
+		"remark": ""
+	},
+	"log": {
+		"access": "",
+		"error": "",
+		"loglevel": "error",
+		"dnsLog": false
+	},
+	"inbounds": [{
+		"tag": "in_proxy",
+		"port": 2582,
+		"protocol": "socks",
+		"listen": "0.0.0.0",
+		"settings": {
+			"auth": "noauth",
+			"udp": true,
+			"userLevel": 8
+		},
+		"sniffing": {
+			"enabled": false
+		}
+	}],
+	"outbounds": [{
+		"tag": "proxy",
+		"protocol": "shadowsocks",
+		"settings": {
+			"servers": [{
+				"address": "127.0.0.1",
+				"method": "aes-128-gcm",
+				"ota": false,
+				"password": "123456",
+				"port": 2584,
+				"level": 8
+			}]
+		},
+		"streamSettings": {
+			"network": "tcp",
+			"security": ""
+		},
+		"mux": {
+			"enabled": false,
+			"concurrency": -1
+		},
+		"remarks": ""
+	}, {
+		"tag": "direct",
+		"protocol": "freedom",
+		"settings": {
+			"domainStrategy": "UseIp"
+		}
+	}, {
+		"tag": "blackhole",
+		"protocol": "blackhole",
+		"settings": {}
+	}],
+	"dns": {
+		"servers": ["8.8.8.8"]
+	},
+	"routing": {
+		"domainStrategy": "UseIp",
+		"rules": [],
+		"balancers": []
+	}
+}
