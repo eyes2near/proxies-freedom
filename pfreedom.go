@@ -141,6 +141,8 @@ func main() {
 	// 解析命令行参数
 	flag.Parse()
 
+	ensureDirs()
+
 	if *vFlag {
 		verbose = true
 	}
@@ -163,6 +165,26 @@ func main() {
 		w()
 	}
 
+}
+
+func ensureDirs() {
+	directories := []string{
+		"./cfgs",
+		"./chatgpt",
+		"./tmp",
+	}
+
+	for _, dir := range directories {
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			// 文件夹不存在，创建它
+			err := os.MkdirAll(dir, 0755)
+			if err != nil {
+				fmt.Println("Error creating directory:", err)
+			} else {
+				fmt.Println("Directory", dir, "created successfully.")
+			}
+		}
+	}
 }
 
 func test() {

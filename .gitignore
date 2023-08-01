@@ -1,7 +1,5 @@
-cfgs/*
-!cfgs/
-chatgpt/*
-!chatgpt/
+cfgs/
+chatgpt/
 tmp/
 pfreedom.exe
 pfreedom
