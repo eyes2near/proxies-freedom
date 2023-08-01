@@ -379,7 +379,10 @@ func startActiveProxyXrays(proxies []ProxyNode) map[uint32]*exec.Cmd {
 		if exist {
 			continue
 		}
-		fmt.Println("starting xray using cfg: ", "./chatgpt/"+node.ConfigFile)
+		if verbose {
+			fmt.Println("starting xray using cfg: ", "./chatgpt/"+node.ConfigFile)
+		}
+
 		cmd := exec.Command("xray", "-c", "./chatgpt/"+node.ConfigFile)
 		stdoutPipe, err := cmd.StdoutPipe()
 		if err != nil {
@@ -400,7 +403,9 @@ func startActiveProxyXrays(proxies []ProxyNode) map[uint32]*exec.Cmd {
 			scanner := bufio.NewScanner(stdoutPipe)
 			for scanner.Scan() {
 				text := scanner.Text()
-				fmt.Println(text)
+				if verbose {
+					fmt.Println(text)
+				}
 				if strings.Contains(text, "Reading config") {
 					//fmt.Println("Xray local service started with cfg:", node.ConfigFile)
 					break
