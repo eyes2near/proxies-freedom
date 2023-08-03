@@ -442,15 +442,15 @@ func testChatGptConnectWithProxy(proxyUrlStr string, shouldTestSpeed bool, serve
 
 	status, sBody := getWebPageContentWithProxy(targetURL, proxyUrlStr, timeout, 5*time.Second)
 
-	if strings.Contains(sBody, "OpenAI account") {
+	if status == 200 {
 		if shouldTestSpeed {
 			//fmt.Println("ChatGpt supported. begin to test speed with proxy:", proxyUrlStr)
 			return testSpeed(proxyUrlStr)
 		}
 		return 1
 	} else {
-		if verbose && status == 200 {
-			fmt.Println(serverId, "_", port, "Chatgpt unsupported, body->", sBody)
+		if verbose {
+			fmt.Println("Chatgpt unsupported, body->", sBody)
 		}
 	}
 	return -1
