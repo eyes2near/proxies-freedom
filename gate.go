@@ -440,7 +440,7 @@ func testOnDutyByChatgpt(shouldTestSpeed bool) []ProxyNode {
 				<-sem // 释放信号量
 				wg.Done()
 			}()
-			speed := testChatGptConnectWithProxy(fmt.Sprintf("socks5://127.0.0.1:%d", originPort), shouldTestSpeed)
+			speed := testChatGptConnectWithProxy(fmt.Sprintf("socks5://127.0.0.1:%d", originPort), shouldTestSpeed, serverId, originPort)
 			if speed > 0 {
 				//获取配置文件名
 				fileName := fmt.Sprintf("%d_%d.json", serverId, originPort)

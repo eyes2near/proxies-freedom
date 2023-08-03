@@ -188,7 +188,7 @@ func ensureDirs() {
 }
 
 func test() {
-	testChatGptConnectWithProxy("socks5://127.0.0.1:10808", false)
+	testChatGptConnectWithProxy("socks5://127.0.0.1:10808", false, 0, 0)
 }
 
 func initWTestPorts() {
@@ -427,10 +427,10 @@ func testChatGptConnect(cfg string, serverId uint32, port int, testPort int, sho
 	wg.Wait()
 	time.Sleep(1 * time.Second)
 	//开始测试chatgpt连接
-	return testChatGptConnectWithProxy(fmt.Sprintf("socks5://127.0.0.1:%d", testPort), shouldTestSpeed)
+	return testChatGptConnectWithProxy(fmt.Sprintf("socks5://127.0.0.1:%d", testPort), shouldTestSpeed, serverId, port)
 }
 
-func testChatGptConnectWithProxy(proxyUrlStr string, shouldTestSpeed bool) float64 {
+func testChatGptConnectWithProxy(proxyUrlStr string, shouldTestSpeed bool, serverId uint32, port int) float64 {
 	if shouldTestSpeed {
 		if verbose {
 			fmt.Println("testing proxy:", proxyUrlStr)
@@ -450,7 +450,7 @@ func testChatGptConnectWithProxy(proxyUrlStr string, shouldTestSpeed bool) float
 		return 1
 	} else {
 		if verbose && status == 200 {
-			fmt.Println("Chatgpt unsupported, body->", sBody)
+			fmt.Println(serverId, "_", port, "Chatgpt unsupported, body->", sBody)
 		}
 	}
 	return -1
