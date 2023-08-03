@@ -440,7 +440,7 @@ func testChatGptConnectWithProxy(proxyUrlStr string, shouldTestSpeed bool) float
 
 	timeout := 8000 * time.Millisecond
 
-	sBody := getWebPageContentWithProxy(targetURL, proxyUrlStr, timeout, 5*time.Second)
+	status, sBody := getWebPageContentWithProxy(targetURL, proxyUrlStr, timeout, 5*time.Second)
 
 	if strings.Contains(sBody, "OpenAI account") {
 		if shouldTestSpeed {
@@ -448,6 +448,10 @@ func testChatGptConnectWithProxy(proxyUrlStr string, shouldTestSpeed bool) float
 			return testSpeed(proxyUrlStr)
 		}
 		return 1
+	} else {
+		if verbose && status == 200 {
+			fmt.Println("Chatgpt unsupported, body->", sBody)
+		}
 	}
 	return -1
 }
@@ -834,13 +838,13 @@ func extractServerIdNPort(str string) (uint32, int) {
 	return uint32(id), port
 }
 
-func getWebPageContentWithProxy(targetURL string, proxyAddress string, timeout time.Duration, tlsHSTimeout time.Duration) string {
+func getWebPageContentWithProxy(targetURL string, proxyAddress string, timeout time.Duration, tlsHSTimeout time.Duration) (int, string) {
 
 	// 创建代理客户端
 	proxyURL, err := url.Parse(proxyAddress)
 	if err != nil {
 		fmt.Println("Error parsing proxy URL:", proxyAddress, err)
-		return ""
+		return -1, ""
 	}
 
 	// 创建一个使用代理的HTTP Transport
@@ -861,8 +865,10 @@ func getWebPageContentWithProxy(targetURL string, proxyAddress string, timeout t
 
 	req, err := http.NewRequest("GET", targetURL, nil)
 	if err != nil {
-		// fmt.Println("Failed to create request:", err)
-		return ""
+		if verbose {
+			fmt.Println("Failed to create request:", proxyAddress, targetURL, err)
+		}
+		return -1, ""
 	}
 
 	// 设置请求头部模拟浏览器
@@ -871,8 +877,10 @@ func getWebPageContentWithProxy(targetURL string, proxyAddress string, timeout t
 	// 发起HTTP GET请求
 	resp, err := client.Do(req)
 	if err != nil {
-		// fmt.Println("Error making GET request:", err)
-		return ""
+		if verbose {
+			fmt.Println("Error making GET request:", proxyAddress, err)
+		}
+		return -1, ""
 	}
 	defer resp.Body.Close()
 
@@ -882,8 +890,10 @@ func getWebPageContentWithProxy(targetURL string, proxyAddress string, timeout t
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		//fmt.Println("Error reading response:", err)
-		return ""
+		if verbose {
+			fmt.Println("Error reading response:", proxyAddress, err)
+		}
+		return resp.StatusCode, ""
 	}
-	return string(body)
+	return resp.StatusCode, string(body)
 }
