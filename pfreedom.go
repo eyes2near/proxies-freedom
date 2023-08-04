@@ -450,7 +450,7 @@ func testChatGptConnectWithProxy(proxyUrlStr string, shouldTestSpeed bool, serve
 		return 1
 	} else {
 		if verbose {
-			fmt.Println("Chatgpt unsupported, body->", sBody)
+			fmt.Println("status -> ", status, "\nChatgpt unsupported, body->\n", sBody)
 		}
 	}
 	return -1
