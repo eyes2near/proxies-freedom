@@ -62,6 +62,8 @@ var testingLock sync.Mutex
 
 var allProxies = make(map[uint32]ProxyInfo)
 
+var testSpeedConcurrent = 4
+
 const (
 	ProxiesUpdated = 1 << iota // 1 重新对所有的配置项执行连通性和速度的测试，更新正在运行的proxy
 	Task10s                    // 2 检查正在运行的proxy的forwarder的健康状态，如果有问题则立刻剔除掉问题节点，并发起一次ProxiesUpdated
@@ -431,7 +433,7 @@ func testOnDutyByChatgpt(shouldTestSpeed bool) []ProxyNode {
 	valids := sync.Map{}
 	//遍历配置文件，并测试
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, concurrent)
+	sem := make(chan struct{}, testSpeedConcurrent)
 	for _, proxy := range proxies {
 		sem <- struct{}{} // 通过信号量控制并行度
 		wg.Add(1)
@@ -440,7 +442,8 @@ func testOnDutyByChatgpt(shouldTestSpeed bool) []ProxyNode {
 				<-sem // 释放信号量
 				wg.Done()
 			}()
-			speed := testChatGptConnectWithProxy(fmt.Sprintf("socks5://127.0.0.1:%d", originPort), shouldTestSpeed, serverId, originPort)
+			// speed := testChatGptConnectWithProxy(fmt.Sprintf("socks5://127.0.0.1:%d", originPort), shouldTestSpeed, serverId, originPort)
+			speed := testSpeed(fmt.Sprintf("socks5://127.0.0.1:%d", originPort))
 			if speed > 0 {
 				//获取配置文件名
 				fileName := fmt.Sprintf("%d_%d.json", serverId, originPort)
@@ -467,7 +470,7 @@ func testByChatGpt(proxies []ProxyInfo, shouldTestSpeed bool) []ProxyNode {
 	valids := sync.Map{}
 	//遍历配置文件，并测试
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, concurrent)
+	sem := make(chan struct{}, testSpeedConcurrent)
 	for _, proxy := range proxies {
 		tp, _ := gTestPorts.Pop()
 		testPort := tp.(int)
@@ -482,8 +485,9 @@ func testByChatGpt(proxies []ProxyInfo, shouldTestSpeed bool) []ProxyNode {
 				<-sem // 释放信号量
 				wg.Done()
 			}()
-			speed := testChatGptConnect(cfg, serverId, originPort, testPort, shouldTestSpeed)
+			// speed := testChatGptConnect(cfg, serverId, originPort, testPort, shouldTestSpeed)
 			// fmt.Println("test chatgpt connect of ", serverId, ":", originPort, ":", testPort, " returns ", speed)
+			speed := testSpeed(fmt.Sprintf("socks5://127.0.0.1:%d", testPort))
 			if speed > 0 {
 				//获取配置文件名
 				fileName := fmt.Sprintf("%d_%d.json", serverId, originPort)

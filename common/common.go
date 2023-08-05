@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"pfreedom/common/log"
+	"github.com/eyes2near/pfreedom/common/log"
 )
 
 type Runnable interface {

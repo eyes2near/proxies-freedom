@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -21,6 +22,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/chromedp/cdproto/network"
+	crdp "github.com/chromedp/chromedp"
 )
 
 var urls = []string{
@@ -41,13 +45,75 @@ var urls = []string{
 	"https://ghproxy.com/https://raw.githubusercontent.com/w1770946466/Auto_proxy/main/Long_term_subscription8", //b64
 }
 
-var concurrent = 16
+var concurrent = -1
 var startPort = 3080
-var wTestStartPort = 10180
+
+// var wTestStartPort = 10180
 var gTestStartPort = 10280
-var wTestPorts SafeStack
+
+// var wTestPorts SafeStack
 var gTestPorts SafeStack
 var verbose = false
+
+var headlessAddrs = []string{
+	"ws://10.10.1.127:9222",
+	"ws://10.10.1.127:9223",
+	"ws://10.10.1.127:9224",
+	"ws://10.10.1.127:9225",
+	"ws://10.10.1.127:9226",
+	"ws://10.10.1.127:9227",
+	"ws://10.10.1.127:9228",
+	"ws://10.10.1.127:9229",
+	"ws://10.10.1.127:9230",
+	"ws://10.10.1.127:9231",
+	"ws://10.10.1.127:9232",
+	"ws://10.10.1.127:9233",
+}
+
+type HeadlessContextItem struct {
+	BaseCtx   context.Context
+	Ctx       context.Context
+	RawCancel context.CancelFunc
+}
+
+func (item *HeadlessContextItem) cancel() {
+	item.Ctx = nil
+	item.RawCancel()
+	item.RawCancel = nil
+}
+
+func (item *HeadlessContextItem) current() (context.Context, context.CancelFunc) {
+	if item.Ctx == nil {
+		// fmt.Println("creating new target context")
+		pCtx, pCancel := crdp.NewContext(item.BaseCtx)
+		err := crdp.Run(pCtx, crdp.Navigate("about:blank"))
+		if err != nil {
+			fmt.Println("unexpect error:", err)
+			pCancel()
+			os.Exit(-1)
+		}
+		tis, err := crdp.Targets(pCtx)
+		if err != nil {
+			fmt.Println("unexpect error:", err)
+			os.Exit(-1)
+		}
+		ctx, tCancel := crdp.NewContext(
+			item.BaseCtx,
+			crdp.WithTargetID(tis[0].TargetID),
+		)
+		item.Ctx = ctx
+		item.RawCancel = func() {
+			tCancel()
+			pCancel()
+		}
+		// fmt.Println("new target context created")
+	}
+	return item.Ctx, item.RawCancel
+}
+
+var headlessContexts = []*HeadlessContextItem{}
+
+var headlessPorxyPorts = []int{20001, 20002, 20003, 20004, 20005, 20006, 20007, 20008, 20009, 20010, 20011, 20012}
 
 type Config struct {
 	Outbounds []Outbound `json:"outbounds"`
@@ -143,6 +209,8 @@ func main() {
 
 	ensureDirs()
 
+	concurrent = len(headlessAddrs)
+
 	if *vFlag {
 		verbose = true
 	}
@@ -167,6 +235,51 @@ func main() {
 
 }
 
+func getBodyHtmlWithProxy(headlessId int) string {
+	contextItem := headlessContexts[headlessId]
+	ctx, _ := contextItem.current()
+	isOk := false
+	//設置一個超時
+	timer := time.AfterFunc(8*time.Second, func() {
+		// fmt.Println("cancelled by timer")
+		contextItem.cancel()
+	})
+	// fmt.Println("trying to listen target")
+	crdp.ListenTarget(ctx, func(ev interface{}) {
+		if res, ok := ev.(*network.EventResponseReceived); ok {
+			// fmt.Println("status->", res.Response.URL, res.Response.Status)
+			// 提取HTTP状态码
+			if res.Response.Status == 403 {
+				timer.Stop()
+				contextItem.cancel()
+			} else if res.Response.URL == "https://chat.openai.com/auth/login" && res.Response.Status == 200 {
+				timer.Stop()
+				isOk = true
+				contextItem.cancel()
+			}
+		}
+	})
+
+	// fmt.Println("navi to chatgpt")
+	err := crdp.Run(ctx, crdp.Navigate("https://chat.openai.com"))
+	timer.Stop()
+	if err != nil {
+		if isOk {
+			return "ok"
+		}
+		return ""
+	}
+
+	// time.Sleep(2 * time.Second)
+	// var html string
+	// err = crdp.Run(ctx, crdp.Evaluate("document?document.documentElement?document.documentElement.innerHTML:\"elem not ready\":\"document not ready\"", &html))
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	return ""
+	// }
+	return "ok"
+}
+
 func ensureDirs() {
 	directories := []string{
 		"./cfgs",
@@ -188,17 +301,22 @@ func ensureDirs() {
 }
 
 func test() {
-	testChatGptConnectWithProxy("socks5://127.0.0.1:10808", false, 0, 0)
+	initHeadlessContexts()
+	fmt.Println("initHeadlessContexts done.")
+	html := getBodyHtmlWithProxy(0)
+	fmt.Println(html)
+	html = getBodyHtmlWithProxy(0)
+	fmt.Println(html)
 }
 
-func initWTestPorts() {
-	wTestPorts = SafeStack{}
-	emptyPortInUse := make(map[int]bool)
-	for i := 0; i <= concurrent; i++ {
-		port, _ := findAvailablePort(wTestStartPort+i, emptyPortInUse)
-		wTestPorts.Push(port)
-	}
-}
+//	func initWTestPorts() {
+//		wTestPorts = SafeStack{}
+//		emptyPortInUse := make(map[int]bool)
+//		for i := 0; i <= concurrent; i++ {
+//			port, _ := findAvailablePort(wTestStartPort+i, emptyPortInUse)
+//			wTestPorts.Push(port)
+//		}
+//	}
 func initGTestPorts() {
 	gTestPorts = SafeStack{}
 	emptyPortInUse := make(map[int]bool)
@@ -208,9 +326,47 @@ func initGTestPorts() {
 	}
 }
 
+func initHeadlessContexts() {
+	if len(headlessContexts) > 0 {
+		return
+	}
+	for _, addr := range headlessAddrs {
+		rootCtx, _ := crdp.NewRemoteAllocator(
+			context.Background(),
+			addr,
+		)
+		bCtx, _ := crdp.NewContext(
+			rootCtx,
+		)
+		tis, err := crdp.Targets(bCtx)
+		if err != nil {
+			fmt.Println("unexpect error:", err)
+			os.Exit(-1)
+		}
+		if len(tis) == 0 {
+			err := crdp.Run(bCtx, crdp.Navigate("about:blank"))
+			if err != nil {
+				fmt.Println("unexpect error:", err)
+				os.Exit(-1)
+			}
+			tis, err = crdp.Targets(bCtx)
+			if err != nil {
+				fmt.Println("unexpect error:", err)
+				os.Exit(-1)
+			}
+		}
+		headlessCtx := HeadlessContextItem{BaseCtx: rootCtx}
+		headlessCtx.Ctx, headlessCtx.RawCancel = crdp.NewContext(
+			bCtx,
+			crdp.WithTargetID(tis[0].TargetID),
+		)
+		headlessContexts = append(headlessContexts, &headlessCtx)
+	}
+}
+
 func w() {
 	//初始化testPorts
-	initWTestPorts()
+	initHeadlessContexts()
 	allInfos, chatGPTInfos := currentProxyInfo()
 	doFetch(allInfos, chatGPTInfos)
 }
@@ -315,6 +471,10 @@ func doFetch(allInfos []ProxyInfo, chatGPTInfos []ProxyInfo) {
 
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, concurrent)
+	headlessIds := make(chan int, concurrent)
+	for id := range headlessAddrs {
+		headlessIds <- id
+	}
 
 	for _, proxyInfo := range allServerInfos {
 		serverINetAddr, ok := serverINetAddrs[proxyInfo.Id]
@@ -355,25 +515,29 @@ func doFetch(allInfos []ProxyInfo, chatGPTInfos []ProxyInfo) {
 		//测试chatgpt连通性
 		sem <- struct{}{} // 通过信号量控制并行度
 		wg.Add(1)
-		tp, _ := wTestPorts.Pop()
-		testPort := tp.(int)
-		go func(cfgFile string, cfg string, serverId uint32, originPort int, testPort int) {
+		// tp, _ := wTestPorts.Pop()
+		// testPort := tp.(int)
+
+		hlId := <-headlessIds
+		go func(cfgFile string, cfg string, serverId uint32, originPort int, headlessId int) {
 			defer func() {
-				wTestPorts.Push(testPort)
+				// wTestPorts.Push(testPort)
 				<-sem // 释放信号量
+				headlessIds <- headlessId
 				wg.Done()
 			}()
-			isReachable := testChatGptConnect(cfg, serverId, originPort, testPort, false) > 0
+			isReachable := testChatGptConnect(cfg, serverId, originPort, headlessId, false) > 0
 			if isReachable {
 				//copy cfg file to ./chatgpt
 				copyFile(cfgFile, "./chatgpt/")
 			}
-		}(fileName, proxyInfo.Cfg, proxyInfo.Id, proxyInfo.Port, testPort)
+		}(fileName, proxyInfo.Cfg, proxyInfo.Id, proxyInfo.Port, hlId)
 	}
 	wg.Wait()
 }
 
-func testChatGptConnect(cfg string, serverId uint32, port int, testPort int, shouldTestSpeed bool) float64 {
+func testChatGptConnect(cfg string, serverId uint32, port int, headlessId int, shouldTestSpeed bool) float64 {
+	testPort := headlessPorxyPorts[headlessId]
 	//将cfg中的" {port}," 替换成 " {testPort},"， 并写入到./tmp/{testPort}.json中，用新的这个cfg文件进行测试。
 	testCfg := strings.Replace(cfg, fmt.Sprintf(" %d,", port), fmt.Sprintf(" %d,", testPort), -1)
 	testCfgFileName := fmt.Sprintf("./tmp/%d.json", testPort)
@@ -427,33 +591,29 @@ func testChatGptConnect(cfg string, serverId uint32, port int, testPort int, sho
 	wg.Wait()
 	time.Sleep(1 * time.Second)
 	//开始测试chatgpt连接
-	return testChatGptConnectWithProxy(fmt.Sprintf("socks5://127.0.0.1:%d", testPort), shouldTestSpeed, serverId, port)
+	return testChatGptConnectWithProxy(headlessId, shouldTestSpeed, serverId, port)
 }
 
-func testChatGptConnectWithProxy(proxyUrlStr string, shouldTestSpeed bool, serverId uint32, port int) float64 {
+func testChatGptConnectWithProxy(headlessId int, shouldTestSpeed bool, serverId uint32, port int) float64 {
 	if shouldTestSpeed {
 		if verbose {
-			fmt.Println("testing proxy:", proxyUrlStr)
+			fmt.Println("testing proxy port:", headlessPorxyPorts[headlessId])
 		}
 	}
-	targetURL := "https://chat.openai.com"
+	// targetURL := "https://chat.openai.com"
+	// timeout := 8000 * time.Millisecond
 
-	timeout := 8000 * time.Millisecond
-
-	status, sBody := getWebPageContentWithProxy(targetURL, proxyUrlStr, timeout, 5*time.Second)
-
-	if status == 200 {
-		if shouldTestSpeed {
-			//fmt.Println("ChatGpt supported. begin to test speed with proxy:", proxyUrlStr)
-			return testSpeed(proxyUrlStr)
-		}
-		return 1
-	} else {
-		if verbose {
-			fmt.Println("status -> ", status, "\nChatgpt unsupported, body->\n", sBody)
-		}
+	sBody := getBodyHtmlWithProxy(headlessId)
+	if sBody == "" {
+		return -1
 	}
-	return -1
+
+	if shouldTestSpeed {
+		//fmt.Println("ChatGpt supported. begin to test speed with proxy:", proxyUrlStr)
+		return testSpeed(fmt.Sprintf("socks5://127.0.0.1:%d", headlessPorxyPorts[headlessId]))
+	}
+	return 1
+
 }
 
 func testSpeed(proxyUrlStr string) float64 {
@@ -488,29 +648,6 @@ func testSpeed(proxyUrlStr string) float64 {
 		// fmt.Println("Failed to create request:", err)
 		return -1
 	}
-
-	//times := make(map[string]time.Time)
-	// 创建一个 httptrace.ClientTrace 对象，用于追踪请求过程
-	// 创建一个Trace对象
-	// trace := &httptrace.ClientTrace{
-	// 	ConnectStart: func(network, addr string) {
-	// 		fmt.Printf("Connecting to %s://%s\n", network, addr)
-	// 	},
-	// 	ConnectDone: func(network, addr string, err error) {
-	// 		fmt.Printf("Connection done with %s://%s, error: %v\n", network, addr, err)
-	// 	},
-	// }
-	/*
-		trace := &httptrace.ClientTrace{
-			ConnectDone: func(network, addr string, err error) {
-				fbTime := time.Now()
-				times["ondata"] = fbTime
-				fmt.Println("conn done at:", fbTime)
-			},
-		}
-	*/
-	// 将 trace 对象关联到请求中
-	// req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 	dataStart := time.Now().Add(-500 * time.Microsecond)
 	resp, err := client.Do(req)
 	if err != nil {
@@ -654,7 +791,7 @@ func hashString(str string) uint32 {
 
 func testServiceConnections(serverTcpFlags *sync.Map) {
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, concurrent)
+	sem := make(chan struct{}, 3*concurrent)
 	serverAddrs := make(map[string]bool)
 	serverTcpFlags.Range(func(key, value interface{}) bool {
 		serverAddrs[key.(string)] = true
@@ -836,64 +973,4 @@ func extractServerIdNPort(str string) (uint32, int) {
 	id, _ := strconv.Atoi(idStr)
 	port, _ := strconv.Atoi(portStr)
 	return uint32(id), port
-}
-
-func getWebPageContentWithProxy(targetURL string, proxyAddress string, timeout time.Duration, tlsHSTimeout time.Duration) (int, string) {
-
-	// 创建代理客户端
-	proxyURL, err := url.Parse(proxyAddress)
-	if err != nil {
-		fmt.Println("Error parsing proxy URL:", proxyAddress, err)
-		return -1, ""
-	}
-
-	// 创建一个使用代理的HTTP Transport
-	transport := &http.Transport{
-		Proxy: http.ProxyURL(proxyURL),
-		Dial: (&net.Dialer{
-			Timeout:   timeout,
-			DualStack: false, // 禁用IPv6，只使用IPv4
-		}).Dial,
-		TLSHandshakeTimeout: tlsHSTimeout,
-	}
-
-	// 创建一个自定义的HTTP客户端
-	client := &http.Client{
-		Transport: transport,
-		Timeout:   timeout,
-	}
-
-	req, err := http.NewRequest("GET", targetURL, nil)
-	if err != nil {
-		if verbose {
-			fmt.Println("Failed to create request:", proxyAddress, targetURL, err)
-		}
-		return -1, ""
-	}
-
-	// 设置请求头部模拟浏览器
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-
-	// 发起HTTP GET请求
-	resp, err := client.Do(req)
-	if err != nil {
-		if verbose {
-			fmt.Println("Error making GET request:", proxyAddress, err)
-		}
-		return -1, ""
-	}
-	defer resp.Body.Close()
-
-	// 读取并打印网页内容
-	// fmt.Println("Response status:", resp.Status)
-	// fmt.Println("Response headers:", resp.Header)
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		if verbose {
-			fmt.Println("Error reading response:", proxyAddress, err)
-		}
-		return resp.StatusCode, ""
-	}
-	return resp.StatusCode, string(body)
 }

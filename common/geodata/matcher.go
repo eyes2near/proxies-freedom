@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"pfreedom/common/log"
+	"github.com/eyes2near/pfreedom/common/log"
 
 	v2router "github.com/v2fly/v2ray-core/v4/app/router"
 )
