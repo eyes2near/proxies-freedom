@@ -658,11 +658,10 @@ func testGoogle(proxyUrlStr string) bool {
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		if verbose {
-			fmt.Println("Failed to send request:", proxyUrlStr, err)
-		}
-		//
+		fmt.Println("Failed to send request to Google:", proxyUrlStr, err)
 		return false
+	} else if resp.StatusCode != 200 {
+		fmt.Println("Failed to load Google with http status:", resp.StatusCode)
 	}
 	return resp.StatusCode == 200
 }
