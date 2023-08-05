@@ -269,7 +269,7 @@ func onProxyCfgsReady() {
 	if verbose {
 		fmt.Println("about to test proxies -> ", proxies)
 	}
-	validProxies := testByChatGpt(proxies)
+	validProxies := testProxiesSpeeds(proxies)
 	//用合格的proxy构建glider的forwarder
 
 	selectedProxies := []ProxyNode{}
@@ -477,7 +477,7 @@ func testOnDutyByGoogle(shouldTestSpeed bool) []ProxyNode {
 	return nodes
 }
 
-func testByChatGpt(proxies []ProxyInfo) []ProxyNode {
+func testProxiesSpeeds(proxies []ProxyInfo) []ProxyNode {
 	testingLock.Lock()
 	defer testingLock.Unlock()
 
@@ -499,8 +499,17 @@ func testByChatGpt(proxies []ProxyInfo) []ProxyNode {
 				<-sem // 释放信号量
 				wg.Done()
 			}()
-			// speed := testChatGptConnect(cfg, serverId, originPort, testPort, shouldTestSpeed)
-
+			//start tmp xray process for proxy
+			ok, cmd := startTmpXray(cfg, originPort, testPort)
+			defer func() {
+				if cmd != nil {
+					cmd.Process.Kill()
+					cmd.Wait()
+				}
+			}()
+			if !ok {
+				return
+			}
 			speed := testSpeed(fmt.Sprintf("socks5://127.0.0.1:%d", testPort))
 			if verbose {
 				fmt.Println("test chatgpt connect of ", serverId, ":", originPort, ":", testPort, " returns ", speed)

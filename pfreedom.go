@@ -538,40 +538,49 @@ func doFetch(allInfos []ProxyInfo, chatGPTInfos []ProxyInfo) {
 
 func testChatGptConnect(cfg string, serverId uint32, port int, headlessId int, shouldTestSpeed bool) float64 {
 	testPort := headlessPorxyPorts[headlessId]
+	ok, cmd := startTmpXray(cfg, port, testPort)
+	defer func() {
+		if cmd != nil {
+			cmd.Process.Kill()
+			cmd.Wait()
+		}
+	}()
+	if ok {
+		//开始测试chatgpt连接
+		return testChatGptConnectWithProxy(headlessId, shouldTestSpeed, serverId, port)
+	}
+	return -1
+}
+
+func startTmpXray(cfg string, port int, testPort int) (bool, *exec.Cmd) {
 	//将cfg中的" {port}," 替换成 " {testPort},"， 并写入到./tmp/{testPort}.json中，用新的这个cfg文件进行测试。
 	testCfg := strings.Replace(cfg, fmt.Sprintf(" %d,", port), fmt.Sprintf(" %d,", testPort), -1)
 	testCfgFileName := fmt.Sprintf("./tmp/%d.json", testPort)
 	file, err := os.Create(testCfgFileName)
 	if err != nil {
 		fmt.Println("Error creating file:", err)
-		return -1
+		return false, nil
 	}
 	defer file.Close()
 	// 写入文件内容
 	_, err = io.WriteString(file, testCfg)
 	if err != nil {
 		fmt.Println("Error writing to file:", err)
-		return -1
+		return false, nil
 	}
 
 	cmd := exec.Command("xray", "-c", testCfgFileName)
-	defer func() {
-		cmd.Process.Kill()
-		cmd.Wait()
-	}()
-
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		fmt.Println("Error creating StdoutPipe:", err)
-		return -1
+		return false, cmd
 	}
 
 	err = cmd.Start()
 	if err != nil {
 		fmt.Println("Error starting xray:", err)
-		return -1
+		return false, cmd
 	}
-
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
@@ -590,8 +599,7 @@ func testChatGptConnect(cfg string, serverId uint32, port int, headlessId int, s
 	}()
 	wg.Wait()
 	time.Sleep(1 * time.Second)
-	//开始测试chatgpt连接
-	return testChatGptConnectWithProxy(headlessId, shouldTestSpeed, serverId, port)
+	return true, cmd
 }
 
 func testChatGptConnectWithProxy(headlessId int, shouldTestSpeed bool, serverId uint32, port int) float64 {
