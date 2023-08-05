@@ -517,6 +517,7 @@ func testProxiesSpeeds(proxies []ProxyInfo) []ProxyNode {
 			if speed > 0 {
 				//获取配置文件名
 				fileName := fmt.Sprintf("%d_%d.json", serverId, originPort)
+				fmt.Println("Speed of proxy:", fileName, " is: ", speed)
 				//chatgpt可用，记录下来
 				valids.Store(ProxyNode{Id: serverId, Score: speed, Port: originPort, ConfigFile: fileName}, true)
 			}
