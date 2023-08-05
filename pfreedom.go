@@ -616,6 +616,49 @@ func testChatGptConnectWithProxy(headlessId int, shouldTestSpeed bool, serverId 
 
 }
 
+func testGoogle(proxyUrlStr string) bool {
+	targetURL := "https://www.google.com"
+	timeout := 5000 * time.Millisecond
+
+	// 设置代理服务器地址
+	proxyURL, err := url.Parse(proxyUrlStr)
+	if err != nil {
+		fmt.Println("Error parsing proxy URL:", err)
+		return false
+	}
+
+	// 创建一个通过代理进行连接的Transport
+	tr := &http.Transport{
+		Proxy: http.ProxyURL(proxyURL),
+		Dial: (&net.Dialer{
+			Timeout:   timeout,
+			DualStack: false, // 禁用IPv6，只使用IPv4
+		}).Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+
+	// 创建一个客户端并使用自定义Transport
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   timeout,
+	}
+
+	req, err := http.NewRequest("GET", targetURL, nil)
+	if err != nil {
+		fmt.Println("Failed to create request:", err)
+		return false
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		if verbose {
+			fmt.Println("Failed to send request:", proxyUrlStr, err)
+		}
+		//
+		return false
+	}
+	return resp.StatusCode == 200
+}
+
 func testSpeed(proxyUrlStr string) float64 {
 	targetURL := "http://cachefly.cachefly.net/10mb.test"
 	timeout := 5000 * time.Millisecond
